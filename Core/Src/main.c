@@ -46,8 +46,17 @@ TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
-volatile SOFT_TIM_HandleTypeDef stim3 = {.T3 = 3, .T4=50};
+volatile SOFT_TIM_HandleTypeDef stim3 = {.T3 = 3, .T4 = 50};
 volatile uint16_t LED4x4Pattern;
+volatile uint16_queue notes_F_q = {.front = -1, .rear = -1};
+volatile uint16_queue notes_T_q = {.front = -1, .rear = -1};
+volatile uint16_queue patterns_img_q = {.front = -1, .rear = -1};
+volatile uint16_queue patterns_T_q = {.front = -1, .rear = -1};
+const int8_t keypad[4][4] = {'1','2','3','A',
+                             '4','5','6','B',
+                             '7','8','9','C',
+                             '*','0','#','D'};
+volatile keypad_input_t keypad_input = {.key = 0, .was_processed = true, .is_held = false};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,46 +73,58 @@ static void MX_TIM4_Init(void);
 /* USER CODE BEGIN 0 */
 void playNoteBlocking(uint16_t FHz, uint16_t T10ms)
 {
-  bool silent;
-  const uint32_t baseTimFreq = 250000;    // after CKDIV4: 1MHz/4=250kHz
+    bool silent;
+    const uint32_t baseTimFreq = 250000;    // after CKDIV4: 1MHz/4=250kHz
 
-  silent = !FHz;
-  htim2.Init.Period = (FHz<=5) ? 24999 : baseTimFreq/2 / FHz - 1;    // Fmin = 5Hz
+    silent = !FHz;
+    htim2.Init.Period = (FHz<=5) ? 24999 : baseTimFreq/2 / FHz - 1;    // Fmin = 5Hz
 
-  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if(!silent)
-    HAL_TIM_Base_Start_IT(&htim2);
+    if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    if(!silent)
+        HAL_TIM_Base_Start_IT(&htim2);
 
-  HAL_TIM_Base_Stop_IT(&htim3);    // temp stop for config
-  stim3.cnt1 = 0;
-  stim3.T1 = T10ms;
-  if (HAL_TIM_Base_Start_IT(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  while(stim3.cnt1 < stim3.T1);    // put sleep and WDR here in the future!
+    HAL_TIM_Base_Stop_IT(&htim3);    // temp stop for config
+    stim3.cnt1 = 0;
+    stim3.T1 = T10ms;
+    if (HAL_TIM_Base_Start_IT(&htim3) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    while(stim3.cnt1 < stim3.T1);    // put sleep and WDR here in the future!
+}
 
-  return;
+void playNote(uint16_t FHz, uint16_t T10ms)
+{
+    while (uint16_queue_isFull(notes_F_q))
+        HAL_Delay(5);
+    uint16_queue_enqueue(notes_F_q, FHz);
+    uint16_queue_enqueue(notes_T_q, T10ms);
 }
 
 void LED4x4DrawBlocking(uint16_t pattern, uint16_t T10ms)
 {
-  HAL_TIM_Base_Stop_IT(&htim3);
-  HAL_TIM_Base_Stop_IT(&htim4);
+    HAL_TIM_Base_Stop_IT(&htim3);
+    HAL_TIM_Base_Stop_IT(&htim4);
 
-  stim3.cnt2 = 0;
-  stim3.T2 = T10ms;
-  LED4x4Pattern = pattern;
+    stim3.cnt2 = 0;
+    stim3.T2 = T10ms;
+    LED4x4Pattern = pattern;
 
-  HAL_TIM_Base_Start_IT(&htim3);
-  HAL_TIM_Base_Start_IT(&htim4);
+    HAL_TIM_Base_Start_IT(&htim3);
+    HAL_TIM_Base_Start_IT(&htim4);
 
-  while(stim3.cnt2 < stim3.T2);    // put sleep and WDR here in the future!
+    while(stim3.cnt2 < stim3.T2);    // put sleep and WDR here in the future!
+}
 
-  return;
+void LED4x4Draw(uint16_t pattern, uint16_t T10ms)
+{
+    while (uint16_queue_isFull(patterns_img_q))
+        HAL_Delay(5);
+    uint16_queue_enqueue(patterns_img_q, pattern);
+    uint16_queue_enqueue(patterns_T_q, T10ms);
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
@@ -125,11 +146,34 @@ void TIM2_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
 
 void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
 {
+    bool silent;
+    const uint32_t noteBaseTimFreq = 250000;    // after CKDIV4: 1MHz/4=250kHz
+    uint16_t note_FHz;
+    static uint8_t irow, pressed_col;
+
     if(stim3.cnt1 < stim3.T1)
         stim3.cnt1 ++;
     else if(stim3.cnt1 == stim3.T1)    // ISR
     {
         HAL_TIM_Base_Stop_IT(&htim2);    // stop playing note
+        if (uint16_queue_isEmpty(notes_F_q))
+            stim3.T1 = 0;    // check at htim3 period (==10ms) for notes
+        else
+        {
+            // start playing next buffered note
+            note_FHz = uint16_queue_dequeue(notes_F_q);
+            stim3.T1 = uint16_queue_dequeue(notes_T_q);
+
+            silent = !note_FHz;
+            // Fmin = 5Hz
+            htim2.Init.Period = (note_FHz<=5) ? 24999 : noteBaseTimFreq/2 / note_FHz - 1;
+            if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+            {
+                Error_Handler();
+            }
+            if(!silent)
+                HAL_TIM_Base_Start_IT(&htim2);
+        }
         stim3.cnt1 = 0;
     }
 
@@ -138,11 +182,19 @@ void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
     else if(stim3.cnt2 == stim3.T2)    // ISR
     {
         //LED4x4Pattern = 0x0000;    // the screen should be cleared from main
-        HAL_TIM_Base_Stop_IT(&htim4);    // freeze screen
+        // to hold the last pattern, htim4 must keep running
+        //HAL_TIM_Base_Stop_IT(&htim4);
+        if (uint16_queue_isEmpty(patterns_img_q))
+            stim3.T2 = 0;    // check at htim3 period (==10ms) for patterns
+        else
+        {
+            LED4x4Pattern = uint16_queue_dequeue(patterns_img_q);
+            stim3.T2 = uint16_queue_dequeue(patterns_T_q);
+        }
         stim3.cnt2 = 0;
     }
 
-    // keypad debounce or some other timing
+    // keypad scanning, stim3.T3_1 = 0 (10ms period)
     //if(stim3.cnt3_1 < stim3.T3)
     //    stim3.cnt3_1 ++;
     //else if(stim3.cnt3_1 == stim3.T3)    // ISR
@@ -154,6 +206,55 @@ void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
     //    }
     //    stim3.cnt3_1++;
     //}
+    if (!keypad_input.is_held)
+    {
+        pressed_col = -1;    // read col
+        pressed_col = !HAL_GPIO_ReadPin(KEY4x4_Port, KEY4x4_C1) ? 0 : pressed_col;
+        pressed_col = !HAL_GPIO_ReadPin(KEY4x4_Port, KEY4x4_C2) ? 1 : pressed_col;
+        pressed_col = !HAL_GPIO_ReadPin(KEY4x4_Port, KEY4x4_C3) ? 2 : pressed_col;
+        pressed_col = !HAL_GPIO_ReadPin(KEY4x4_Port, KEY4x4_C4) ? 3 : pressed_col;
+        if (pressed_col != -1)
+        {
+            keypad_input.key = keypad[irow][pressed_col];
+            keypad_input.was_processed = false;
+            keypad_input.is_held = true;
+        }
+        else    // no keypress, iterate row
+        {
+            irow++;
+            switch(irow)
+            {
+                case 0: HAL_GPIO_WritePin(KEY4x4_Port, KEY4x4_R4, 1);
+                        HAL_GPIO_WritePin(KEY4x4_Port, KEY4x4_R1, 0);
+                        break;
+                case 1: HAL_GPIO_WritePin(KEY4x4_Port, KEY4x4_R1, 1);
+                        HAL_GPIO_WritePin(KEY4x4_Port, KEY4x4_R2, 0);
+                        break;
+                case 2: HAL_GPIO_WritePin(KEY4x4_Port, KEY4x4_R2, 1);
+                        HAL_GPIO_WritePin(KEY4x4_Port, KEY4x4_R3, 0);
+                        break;
+                case 3: HAL_GPIO_WritePin(KEY4x4_Port, KEY4x4_R3, 1);
+                        HAL_GPIO_WritePin(KEY4x4_Port, KEY4x4_R4, 0);
+                        break;
+            }
+        }
+    }
+    else    // wait for release
+    {
+        pressed_col = -1;
+        pressed_col = !HAL_GPIO_ReadPin(KEY4x4_Port, KEY4x4_C1) ? 0 : pressed_col;
+        pressed_col = !HAL_GPIO_ReadPin(KEY4x4_Port, KEY4x4_C2) ? 1 : pressed_col;
+        pressed_col = !HAL_GPIO_ReadPin(KEY4x4_Port, KEY4x4_C3) ? 2 : pressed_col;
+        pressed_col = !HAL_GPIO_ReadPin(KEY4x4_Port, KEY4x4_C4) ? 3 : pressed_col;
+        // still pressed, but something else -> register;  wait if same key
+        if ((pressed_col != -1) && (keypad[irow][pressed_col] != keypad_input.key))
+        {
+            keypad_input.key = keypad[irow][pressed_col];
+            keypad_input.was_processed = false;
+        }
+        else if (pressed_col == -1)
+            keypad_input.is_held = false;
+    }
 
     if(stim3.cnt4 < stim3.T4)
         stim3.cnt4 ++;
@@ -170,7 +271,7 @@ void TIM4_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
   static uint8_t iled=0;
   bool lit;
 
-  lit = (LED4x4Pattern & (1<<iled)) ? 1 : 0;
+  lit = LED4x4Pattern & (1<<iled);
   switch(iled)
   {
     case 0:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C1, lit);

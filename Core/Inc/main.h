@@ -31,6 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdbool.h"
 
 /* USER CODE END Includes */
 
@@ -96,6 +97,13 @@ typedef struct
     unsigned short int T4;
     unsigned short int cnt4;
 } SOFT_TIM_HandleTypeDef;
+
+typedef struct
+{
+    int8_t key;
+    bool was_processed;
+    bool is_held;
+} keypad_input_t;
 
 /* USER CODE END Private defines */
 

@@ -1,7 +1,7 @@
 #ifndef UINT16_QUEUE_H
 #define UINT16_QUEUE_H
-#include "stdbool.h"
 
+#include "stdbool.h"
 #define MAX_SIZE 128
 
 typedef struct
@@ -14,4 +14,6 @@ typedef struct
 bool uint16_queue_isFull (uint16_queue *q);
 bool uint16_queue_isEmpty (uint16_queue *q);
 void uint16_queue_enqueue (uint16_queue *q, uint16_t data);
-uint16_t dequeue(uint16_queue *q);
+uint16_t uint16_queue_dequeue(uint16_queue *q);
+
+#endif

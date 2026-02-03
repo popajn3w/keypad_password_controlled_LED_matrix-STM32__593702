@@ -28,7 +28,7 @@ void uint16_queue_enqueue (uint16_queue *q, uint16_t data)
     q->arr[q->rear] = data;
 }
 
-uint16_t dequeue(uint16_queue *q)
+uint16_t uint16_queue_dequeue(uint16_queue *q)
 {
     // error if queue is empty, cannot pop
     if (q->front == -1)
