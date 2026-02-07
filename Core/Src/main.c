@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdbool.h"
+#include "string.h"
 
 /* USER CODE END Includes */
 
@@ -125,6 +126,34 @@ void LED4x4Draw(uint16_t pattern, uint16_t T10ms)
         HAL_Delay(5);
     uint16_queue_enqueue(patterns_img_q, pattern);
     uint16_queue_enqueue(patterns_T_q, T10ms);
+}
+
+void keyDrawOnLED4x4(char key, bool inverted)
+{
+    uint16_t pattern;
+    switch(key)
+    {
+        case '1': pattern = 0b1000000000000000;  break;
+        case '2': pattern = 0b0100000000000000;  break;
+        case '3': pattern = 0b0010000000000000;  break;
+        case 'A': pattern = 0b0001000000000000;  break;
+        case '4': pattern = 0b0000100000000000;  break;
+        case '5': pattern = 0b0000010000000000;  break;
+        case '6': pattern = 0b0000001000000000;  break;
+        case 'B': pattern = 0b0000000100000000;  break;
+        case '7': pattern = 0b0000000010000000;  break;
+        case '8': pattern = 0b0000000001000000;  break;
+        case '9': pattern = 0b0000000000100000;  break;
+        case 'C': pattern = 0b0000000000010000;  break;
+        case '*': pattern = 0b0000000000001000;  break;
+        case '0': pattern = 0b0000000000000100;  break;
+        case '#': pattern = 0b0000000000000010;  break;
+        case 'D': pattern = 0b0000000000000001;  break;
+        default:  pattern = 0;                   break;
+    }
+    pattern = inverted ? ~pattern : pattern;
+    LED4x4Draw(pattern, 30);
+    inverted ? LED4x4Draw(0xFFFF,10) : LED4x4Draw(0x0000,10);
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
@@ -271,7 +300,7 @@ void TIM4_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
   static uint8_t iled=0;
   bool lit;
 
-  lit = LED4x4Pattern & (1<<iled);
+  lit = LED4x4Pattern & (1<<(15-iled));
   switch(iled)
   {
     case 0:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C1, lit);
@@ -361,66 +390,172 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-  int i;
+    char stored_pass[MAX_PASS_LEN+1];
+    uint8_t stored_pass_len = 0;
+    char typed_pass[MAX_PASS_LEN+1], last_typed_char = 0;
+    enum lock_state_t {LOCKED, UNLOCKED, SET_NEW_CHECK_OLD, SET_NEW} lock_state = UNLOCKED;
+    int i, j;
 
-  HAL_TIM_Base_Start_IT(&htim3);
-  HAL_TIM_Base_Start_IT(&htim4);
+    HAL_TIM_Base_Start_IT(&htim3);
+    HAL_TIM_Base_Start_IT(&htim4);
 
-  for(i=0; i<16; i++)
-  {
-    LED4x4DrawBlocking(1<<i, 50);
-    LED4x4DrawBlocking(0, 30);
-  }
+    for(i=0; i<16; i++)
+    {
+        LED4x4DrawBlocking(1<<i, 50);
+        LED4x4DrawBlocking(0, 30);
+    }
 
-  LED4x4DrawBlocking(0b1111000011010001, 100);
-  LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4DrawBlocking(0b1000101100001111, 100);
+    LED4x4DrawBlocking(0b0000000000000000, 50);
 
-  LED4x4DrawBlocking(0b0100111100101110, 100);
-  LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4DrawBlocking(0b0111010011110010, 100);
+    LED4x4DrawBlocking(0b0000000000000000, 50);
 
-  LED4x4DrawBlocking(0b0101010101010101, 100);
-  LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4DrawBlocking(0b1010101010101010, 100);
+    LED4x4DrawBlocking(0b0000000000000000, 50);
 
-  LED4x4DrawBlocking(0b1111000011010001, 100);
-  LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4DrawBlocking(0b1000101100001111, 100);
+    LED4x4DrawBlocking(0b0000000000000000, 50);
 
-  LED4x4DrawBlocking(0b0100111100101110, 100);
-  LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4DrawBlocking(0b0111010011110010, 100);
+    LED4x4DrawBlocking(0b0000000000000000, 50);
 
-  LED4x4DrawBlocking(0b0101010101010101, 100);
-  LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4DrawBlocking(0b1010101010101010, 100);
+    LED4x4DrawBlocking(0b0000000000000000, 50);
 
-  playNoteBlocking(1500,100);
-  playNoteBlocking(0,50);
-  playNoteBlocking(1500,100);
-  playNoteBlocking(0,50);
-  playNoteBlocking(2000,100);
-  playNoteBlocking(0,50);
-  playNoteBlocking(6000,50);
+    playNoteBlocking(1500,100);
+    playNoteBlocking(0,50);
+    playNoteBlocking(1500,100);
+    playNoteBlocking(0,50);
+    playNoteBlocking(2000,100);
+    playNoteBlocking(0,50);
+    playNoteBlocking(6000,50);
 
-  playNoteBlocking(1500,100);
-  playNoteBlocking(0,50);
-  playNoteBlocking(1500,100);
-  playNoteBlocking(0,50);
-  playNoteBlocking(2000,100);
-  playNoteBlocking(0,50);
-  playNoteBlocking(2500,100);
-  playNoteBlocking(0,50);
-  playNoteBlocking(3500,100);
-  playNoteBlocking(0,50);
+    playNoteBlocking(1500,100);
+    playNoteBlocking(0,50);
+    playNoteBlocking(1500,100);
+    playNoteBlocking(0,50);
+    playNoteBlocking(2000,100);
+    playNoteBlocking(0,50);
+    playNoteBlocking(2500,100);
+    playNoteBlocking(0,50);
+    playNoteBlocking(3500,100);
+    playNoteBlocking(0,50);
 
-  playNoteBlocking(1000,40);
-  playNoteBlocking(500,40);
+    playNoteBlocking(1000,40);
+    playNoteBlocking(500,40);
 
-  playNoteBlocking(0,100);
-  //playNoteBlocking(10000,300);
-  playNoteBlocking(5500,300);
+    playNoteBlocking(0,100);
+    //playNoteBlocking(10000,300);
+    playNoteBlocking(5500,300);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+    i = 0;
+    LED4x4Draw(0b0000000000000000, 10);
+    while (1)
+    {
+        if (!keypad_input.was_processed)
+        {
+            switch (lock_state)
+            {
+                case UNLOCKED:
+                    if (keypad_input.key == '#'  &&  last_typed_char == '#')
+                    {
+                        LED4x4Draw(0b1111000000000000, 100);
+                        LED4x4Draw(0b1111111100000000, 100);
+                        LED4x4Draw(0b1111111111110000, 100);
+                        LED4x4Draw(0b1111111111111111, 100);
+                        lock_state = LOCKED;
+                    }
+                    if (keypad_input.key == '*'  &&  last_typed_char == '*')
+                        lock_state = SET_NEW;
+                    break;
+
+                case SET_NEW_CHECK_OLD:
+                    if (keypad_input.key == '*')        // flush
+                        i = 0;
+                    else if (keypad_input.key == '#'  || i >= MAX_PASS_LEN)    // check
+                    {
+                        if (i==stored_pass_len && !memcmp(typed_pass, stored_pass, i))
+                        {
+                            lock_state = SET_NEW;
+                            playNote(440, 50);    // play success tune
+                            playNote(0, 25);
+                            playNote(440, 50);
+                            playNote(0, 25);
+                            playNote(440, 25);
+                            playNote(880, 25);
+                            playNote(1760, 25);
+                        }
+                        else
+                        {
+                            playNote(440, 50);    // play fail tune
+                            playNote(0, 25);
+                            playNote(220, 50);
+                            playNote(0, 25);
+                            playNote(220, 50);
+                            lock_state = UNLOCKED;
+                        }
+                        i = 0;
+                    }
+                    else            // store char
+                        typed_pass[i++] = keypad_input.key;
+                    break;
+
+                case SET_NEW:
+                    if (keypad_input.key == '*')
+                        i = 0;
+                    else if (keypad_input == '#')
+                    {
+                        LED4x4Draw(0b1111000000000000, 100);
+                        LED4x4Draw(0b1111111100000000, 100);
+                        LED4x4Draw(0b1111111111110000, 100);
+                        LED4x4Draw(0b1111111111111111, 100);
+                        stored_pass_len = i;
+                        i = 0;
+                        lock_state = LOCKED;
+                    }
+                    else
+                        stored_pass[i++] = keypad_input.key;
+                    break;
+
+                case LOCKED:
+                    if (keypad_input.key == '*')        // flush
+                        i = 0;
+                    else if (keypad_input.key == '#'  || i >= MAX_PASS_LEN)    // check
+                    {
+                        if (i==stored_pass_len && !memcmp(typed_pass, stored_pass, i))
+                        {
+                            lock_state = UNLOCKED;
+                            playNote(1760, 50);    // play success tune
+                            playNote(0, 25);
+                            playNote(880, 50);
+                            playNote(0, 25);
+                            playNote(3520, 25);
+                            LED4x4Draw(0b1111111111110000, 100);
+                            LED4x4Draw(0b1111111100000000, 100);
+                            LED4x4Draw(0b1111000000000000, 100);
+                            LED4x4Draw(0b0000000000000000, 100);
+                        }
+                        else
+                        playNote(440, 50);    // play fail tune
+                        playNote(0, 25);
+                        playNote(220, 50);
+                        playNote(0, 25);
+                        playNote(220, 50);
+                        i = 0;
+                    }
+                    else            // store char
+                        typed_pass[i++] = keypad_input.key;
+                    break;
+            }
+            keyDrawOnLED4x4(keypad_input.key, lock_state==LOCKED);
+            last_typed_char = keypad_input.key;
+            keypad_input.was_processed = true;
+        }
+    }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

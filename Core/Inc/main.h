@@ -58,6 +58,7 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define MAX_PASS_LEN 64    // max 255
 #define LED_Pin GPIO_PIN_13
 #define LED_GPIO_Port GPIOC
 #define BUZZER_Pin GPIO_PIN_11
