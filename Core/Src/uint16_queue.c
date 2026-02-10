@@ -1,16 +1,16 @@
 #include "uint16_queue.h"
 
-bool uint16_queue_isFull (uint16_queue *q)
+bool uint16_queue_isFull (volatile uint16_queue *q)
 {
     return (q->rear + 1) % MAX_SIZE == q->front;
 }
 
-bool uint16_queue_isEmpty (uint16_queue *q)
+bool uint16_queue_isEmpty (volatile uint16_queue *q)
 {
     return q->front == -1;
 }
 
-void uint16_queue_enqueue (uint16_queue *q, uint16_t data)
+void uint16_queue_enqueue (volatile uint16_queue *q, uint16_t data)
 {
     // error if queue is full, cannot push
     if ((q->rear + 1) % MAX_SIZE == q->front)
@@ -28,7 +28,7 @@ void uint16_queue_enqueue (uint16_queue *q, uint16_t data)
     q->arr[q->rear] = data;
 }
 
-uint16_t uint16_queue_dequeue(uint16_queue *q)
+uint16_t uint16_queue_dequeue(volatile uint16_queue *q)
 {
     // error if queue is empty, cannot pop
     if (q->front == -1)

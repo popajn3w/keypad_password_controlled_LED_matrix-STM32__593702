@@ -21,8 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdbool.h"
 #include "string.h"
+#include "uint16_queue.h"
 
 /* USER CODE END Includes */
 
@@ -53,10 +53,10 @@ volatile uint16_queue notes_F_q = {.front = -1, .rear = -1};
 volatile uint16_queue notes_T_q = {.front = -1, .rear = -1};
 volatile uint16_queue patterns_img_q = {.front = -1, .rear = -1};
 volatile uint16_queue patterns_T_q = {.front = -1, .rear = -1};
-const int8_t keypad[4][4] = {'1','2','3','A',
-                             '4','5','6','B',
-                             '7','8','9','C',
-                             '*','0','#','D'};
+const int8_t keypad[4][4] = {{'1','2','3','A'},
+                             {'4','5','6','B'},
+                             {'7','8','9','C'},
+                             {'*','0','#','D'}};
 volatile keypad_input_t keypad_input = {.key = 0, .was_processed = true, .is_held = false};
 /* USER CODE END PV */
 
@@ -99,10 +99,10 @@ void playNoteBlocking(uint16_t FHz, uint16_t T10ms)
 
 void playNote(uint16_t FHz, uint16_t T10ms)
 {
-    while (uint16_queue_isFull(notes_F_q))
+    while (uint16_queue_isFull(&notes_F_q))
         HAL_Delay(5);
-    uint16_queue_enqueue(notes_F_q, FHz);
-    uint16_queue_enqueue(notes_T_q, T10ms);
+    uint16_queue_enqueue(&notes_F_q, FHz);
+    uint16_queue_enqueue(&notes_T_q, T10ms);
 }
 
 void LED4x4DrawBlocking(uint16_t pattern, uint16_t T10ms)
@@ -122,10 +122,10 @@ void LED4x4DrawBlocking(uint16_t pattern, uint16_t T10ms)
 
 void LED4x4Draw(uint16_t pattern, uint16_t T10ms)
 {
-    while (uint16_queue_isFull(patterns_img_q))
+    while (uint16_queue_isFull(&patterns_img_q))
         HAL_Delay(5);
-    uint16_queue_enqueue(patterns_img_q, pattern);
-    uint16_queue_enqueue(patterns_T_q, T10ms);
+    uint16_queue_enqueue(&patterns_img_q, pattern);
+    uint16_queue_enqueue(&patterns_T_q, T10ms);
 }
 
 void keyDrawOnLED4x4(char key, bool inverted)
@@ -156,18 +156,6 @@ void keyDrawOnLED4x4(char key, bool inverted)
     inverted ? LED4x4Draw(0xFFFF,10) : LED4x4Draw(0x0000,10);
 }
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-    switch(htim->Instance) {
-        case TIM2: TIM2_PeriodElapsedCallback_ISR(htim);
-                   break;
-        case TIM3: TIM3_PeriodElapsedCallback_ISR(htim);
-                   break;
-        case TIM4: TIM4_PeriodElapsedCallback_ISR(htim);
-                   break;
-    }
-}
-
 void TIM2_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
 {
     HAL_GPIO_TogglePin(BUZZER_GPIO_Port, BUZZER_Pin);
@@ -185,13 +173,13 @@ void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
     else if(stim3.cnt1 == stim3.T1)    // ISR
     {
         HAL_TIM_Base_Stop_IT(&htim2);    // stop playing note
-        if (uint16_queue_isEmpty(notes_F_q))
+        if (uint16_queue_isEmpty(&notes_F_q))
             stim3.T1 = 0;    // check at htim3 period (==10ms) for notes
         else
         {
             // start playing next buffered note
-            note_FHz = uint16_queue_dequeue(notes_F_q);
-            stim3.T1 = uint16_queue_dequeue(notes_T_q);
+            note_FHz = uint16_queue_dequeue(&notes_F_q);
+            stim3.T1 = uint16_queue_dequeue(&notes_T_q);
 
             silent = !note_FHz;
             // Fmin = 5Hz
@@ -213,12 +201,12 @@ void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
         //LED4x4Pattern = 0x0000;    // the screen should be cleared from main
         // to hold the last pattern, htim4 must keep running
         //HAL_TIM_Base_Stop_IT(&htim4);
-        if (uint16_queue_isEmpty(patterns_img_q))
+        if (uint16_queue_isEmpty(&patterns_img_q))
             stim3.T2 = 0;    // check at htim3 period (==10ms) for patterns
         else
         {
-            LED4x4Pattern = uint16_queue_dequeue(patterns_img_q);
-            stim3.T2 = uint16_queue_dequeue(patterns_T_q);
+            LED4x4Pattern = uint16_queue_dequeue(&patterns_img_q);
+            stim3.T2 = uint16_queue_dequeue(&patterns_T_q);
         }
         stim3.cnt2 = 0;
     }
@@ -356,6 +344,16 @@ void TIM4_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
   iled = (iled+1) % 16;
 }
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if      (htim->Instance == TIM2)
+        TIM2_PeriodElapsedCallback_ISR(htim);
+    else if (htim->Instance == TIM3)
+        TIM3_PeriodElapsedCallback_ISR(htim);
+    else if (htim->Instance == TIM4)
+        TIM4_PeriodElapsedCallback_ISR(htim);
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -476,11 +474,10 @@ int main(void)
                 case SET_NEW_CHECK_OLD:
                     if (keypad_input.key == '*')        // flush
                         i = 0;
-                    else if (keypad_input.key == '#'  || i >= MAX_PASS_LEN)    // check
+                    else if (keypad_input.key == '#'  ||  i >= MAX_PASS_LEN)    // check
                     {
                         if (i==stored_pass_len && !memcmp(typed_pass, stored_pass, i))
                         {
-                            lock_state = SET_NEW;
                             playNote(440, 50);    // play success tune
                             playNote(0, 25);
                             playNote(440, 50);
@@ -488,6 +485,7 @@ int main(void)
                             playNote(440, 25);
                             playNote(880, 25);
                             playNote(1760, 25);
+                            lock_state = SET_NEW;
                         }
                         else
                         {
@@ -507,7 +505,7 @@ int main(void)
                 case SET_NEW:
                     if (keypad_input.key == '*')
                         i = 0;
-                    else if (keypad_input == '#')
+                    else if (keypad_input.key == '#'  ||  i >= MAX_PASS_LEN)
                     {
                         LED4x4Draw(0b1111000000000000, 100);
                         LED4x4Draw(0b1111111100000000, 100);
@@ -555,11 +553,11 @@ int main(void)
             last_typed_char = keypad_input.key;
             keypad_input.was_processed = true;
         }
-    }
+        HAL_Delay(20);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+    }
   /* USER CODE END 3 */
 }
 

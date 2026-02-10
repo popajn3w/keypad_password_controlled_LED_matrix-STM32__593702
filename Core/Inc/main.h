@@ -31,6 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdint.h"
 #include "stdbool.h"
 
 /* USER CODE END Includes */
@@ -58,7 +59,6 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define MAX_PASS_LEN 64    // max 255
 #define LED_Pin GPIO_PIN_13
 #define LED_GPIO_Port GPIOC
 #define BUZZER_Pin GPIO_PIN_11
@@ -84,6 +84,8 @@ void Error_Handler(void);
 #define KEY4x4_R2 GPIO_PIN_6
 #define KEY4x4_R3 GPIO_PIN_7
 #define KEY4x4_R4 GPIO_PIN_8
+
+#define MAX_PASS_LEN 64    // max 255
 
 // software timer multiplexing 4 timers
 typedef struct
