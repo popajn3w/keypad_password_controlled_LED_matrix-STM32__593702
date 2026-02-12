@@ -66,14 +66,14 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 #define LED4x4_Port GPIOA
-#define LED4x4_C1 GPIO_PIN_1
-#define LED4x4_C2 GPIO_PIN_2
-#define LED4x4_C3 GPIO_PIN_3
-#define LED4x4_C4 GPIO_PIN_4
-#define LED4x4_R1 GPIO_PIN_5    // row cathode
-#define LED4x4_R2 GPIO_PIN_6
-#define LED4x4_R3 GPIO_PIN_7
-#define LED4x4_R4 GPIO_PIN_8
+#define LED4x4_C1 GPIO_PIN_0
+#define LED4x4_C2 GPIO_PIN_1
+#define LED4x4_C3 GPIO_PIN_2
+#define LED4x4_C4 GPIO_PIN_3
+#define LED4x4_R1 GPIO_PIN_4    // row cathode
+#define LED4x4_R2 GPIO_PIN_5
+#define LED4x4_R3 GPIO_PIN_6
+#define LED4x4_R4 GPIO_PIN_7
 
 #define KEY4x4_Port GPIOB
 #define KEY4x4_C1 GPIO_PIN_0
