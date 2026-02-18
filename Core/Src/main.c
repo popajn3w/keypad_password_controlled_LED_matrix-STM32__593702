@@ -169,7 +169,7 @@ void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
     bool silent;
     const uint32_t noteBaseTimFreq = 250000;    // after CKDIV4: 1MHz/4=250kHz
     uint16_t note_FHz;
-    static uint8_t irow, pressed_col;
+    static int8_t irow, pressed_col;
 
     if(stim3.cnt1 < stim3.T1)
         stim3.cnt1 ++;
@@ -241,7 +241,7 @@ void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
         }
         else    // no keypress, iterate row
         {
-            irow++;
+            irow = (irow+1) & 0b0011;
             switch(irow)
             {
                 case 0: HAL_GPIO_WritePin(KEY4x4_Port, KEY4x4_R4, 1);
@@ -296,51 +296,71 @@ void TIM4_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
   {
     case 0:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C1, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R1, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C4, 0);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R4, 1);
               break;
     case 1:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C2, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R1, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C1, 0);
               break;
     case 2:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C3, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R1, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C2, 0);
               break;
     case 3:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C4, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R1, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C3, 0);
               break;
     case 4:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C1, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R2, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C4, 0);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R1, 1);
               break;
     case 5:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C2, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R2, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C1, 0);
               break;
     case 6:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C3, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R2, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C2, 0);
               break;
     case 7:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C4, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R2, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C3, 0);
               break;
     case 8:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C1, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R3, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C4, 0);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R2, 1);
               break;
     case 9:   HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C2, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R3, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C1, 0);
               break;
     case 10:  HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C3, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R3, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C2, 0);
               break;
     case 11:  HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C4, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R3, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C3, 0);
               break;
     case 12:  HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C1, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R4, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C4, 0);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R3, 1);
               break;
     case 13:  HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C2, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R4, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C1, 0);
               break;
     case 14:  HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C3, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R4, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C2, 0);
               break;
     case 15:  HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C4, lit);
               HAL_GPIO_WritePin(LED4x4_Port, LED4x4_R4, !lit);
+              HAL_GPIO_WritePin(LED4x4_Port, LED4x4_C3, 0);
               break;
   }
 
@@ -402,53 +422,53 @@ int main(void)
 
     for(i=0; i<16; i++)
     {
-        LED4x4DrawBlocking(1<<i, 50);
-        LED4x4DrawBlocking(0, 30);
+        LED4x4Draw(0x8000>>i, 50);
+        LED4x4Draw(0, 30);
     }
 
-    LED4x4DrawBlocking(0b1000101100001111, 100);
-    LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4Draw(0b1000101100001111, 100);
+    LED4x4Draw(0b0000000000000000, 50);
 
-    LED4x4DrawBlocking(0b0111010011110010, 100);
-    LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4Draw(0b0111010011110010, 100);
+    LED4x4Draw(0b0000000000000000, 50);
 
-    LED4x4DrawBlocking(0b1010101010101010, 100);
-    LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4Draw(0b1010101010101010, 100);
+    LED4x4Draw(0b0000000000000000, 50);
 
-    LED4x4DrawBlocking(0b1000101100001111, 100);
-    LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4Draw(0b1000101100001111, 100);
+    LED4x4Draw(0b0000000000000000, 50);
 
-    LED4x4DrawBlocking(0b0111010011110010, 100);
-    LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4Draw(0b0111010011110010, 100);
+    LED4x4Draw(0b0000000000000000, 50);
 
-    LED4x4DrawBlocking(0b1010101010101010, 100);
-    LED4x4DrawBlocking(0b0000000000000000, 50);
+    LED4x4Draw(0b1010101010101010, 100);
+    LED4x4Draw(0b0000000000000000, 50);
 
-    playNoteBlocking(1500,100);
-    playNoteBlocking(0,50);
-    playNoteBlocking(1500,100);
-    playNoteBlocking(0,50);
-    playNoteBlocking(2000,100);
-    playNoteBlocking(0,50);
-    playNoteBlocking(6000,50);
+    playNote(1500,100);
+    playNote(0,50);
+    playNote(1500,100);
+    playNote(0,50);
+    playNote(2000,100);
+    playNote(0,50);
+    playNote(6000,50);
 
-    playNoteBlocking(1500,100);
-    playNoteBlocking(0,50);
-    playNoteBlocking(1500,100);
-    playNoteBlocking(0,50);
-    playNoteBlocking(2000,100);
-    playNoteBlocking(0,50);
-    playNoteBlocking(2500,100);
-    playNoteBlocking(0,50);
-    playNoteBlocking(3500,100);
-    playNoteBlocking(0,50);
+    playNote(1500,100);
+    playNote(0,50);
+    playNote(1500,100);
+    playNote(0,50);
+    playNote(2000,100);
+    playNote(0,50);
+    playNote(2500,100);
+    playNote(0,50);
+    playNote(3500,100);
+    playNote(0,50);
 
-    playNoteBlocking(1000,40);
-    playNoteBlocking(500,40);
+    playNote(1000,40);
+    playNote(500,40);
 
-    playNoteBlocking(0,100);
-    //playNoteBlocking(10000,300);
-    playNoteBlocking(5500,300);
+    playNote(0,100);
+    //playNote(10000,300);
+    playNote(5500,300);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -471,7 +491,10 @@ int main(void)
                         lock_state = LOCKED;
                     }
                     if (keypad_input.key == '*'  &&  last_typed_char == '*')
-                        lock_state = SET_NEW;
+                    {
+                        playNote(880, 20);
+                        lock_state = SET_NEW_CHECK_OLD;
+                    }
                     break;
 
                 case SET_NEW_CHECK_OLD:
