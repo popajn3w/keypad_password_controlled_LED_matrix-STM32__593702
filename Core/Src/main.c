@@ -47,7 +47,7 @@ TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
-volatile SOFT_TIM_HandleTypeDef stim3 = {.T3 = 3, .T4 = 50};
+volatile SOFT_TIM_HandleTypeDef stim3 = {.T3 = 10, .T4 = 50};
 volatile uint16_t LED4x4Pattern;
 volatile uint16_queue notes_F_q = {.front = -1, .rear = -1};
 volatile uint16_queue notes_T_q = {.front = -1, .rear = -1};
@@ -75,17 +75,16 @@ static void MX_TIM4_Init(void);
 void playNoteBlocking(uint16_t FHz, uint16_t T10ms)
 {
     bool silent;
-    const uint32_t baseTimFreq = 250000;    // after CKDIV4: 1MHz/4=250kHz
+    const uint32_t baseTimFreq = 250000;    // after PSC: 1MHz/4=250kHz
 
     silent = !FHz;
-    htim2.Init.Period = (FHz<=5) ? 24999 : baseTimFreq/2 / FHz - 1;    // Fmin = 5Hz
+    // Fmin = 5Hz
+    __HAL_TIM_SET_AUTORELOAD(&htim2, (FHz<=5) ? 49999 : (baseTimFreq / FHz & 0xFFFFE) - 1);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4,
+                         (FHz<=5) ? 24999 : baseTimFreq / FHz /2 - 1);
 
-    if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-    {
-        Error_Handler();
-    }
-    if(!silent)
-        HAL_TIM_Base_Start_IT(&htim2);
+    if(silent)
+        __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
 
     HAL_TIM_Base_Stop_IT(&htim3);    // temp stop for config
     stim3.cnt1 = 0;
@@ -96,7 +95,7 @@ void playNoteBlocking(uint16_t FHz, uint16_t T10ms)
     }
     while(stim3.cnt1 < stim3.T1)    // put sleep and WDR here in the future!
         HAL_Delay(2);
-    HAL_TIM_Base_Stop_IT(&htim2);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);    // stop playing note
 }
 
 void playNote(uint16_t FHz, uint16_t T10ms)
@@ -159,15 +158,10 @@ void keyDrawOnLED4x4(char key, bool inverted)
     inverted ? LED4x4Draw(0xFFFF,10) : LED4x4Draw(0x0000,10);
 }
 
-void TIM2_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
-{
-    HAL_GPIO_TogglePin(BUZZER_GPIO_Port, BUZZER_Pin);
-}
-
 void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
 {
     bool silent;
-    const uint32_t noteBaseTimFreq = 250000;    // after CKDIV4: 1MHz/4=250kHz
+    const uint32_t noteBaseTimFreq = 250000;    // after PSC: 1MHz/4=250kHz
     uint16_t note_FHz;
     static int8_t irow, pressed_col;
 
@@ -175,7 +169,7 @@ void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
         stim3.cnt1 ++;
     else if(stim3.cnt1 == stim3.T1)    // ISR
     {
-        HAL_TIM_Base_Stop_IT(&htim2);    // stop playing note
+        __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);    // stop playing note
         if (uint16_queue_isEmpty(&notes_F_q))
             stim3.T1 = 0;    // check at htim3 period (==10ms) for notes
         else
@@ -186,13 +180,11 @@ void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
 
             silent = !note_FHz;
             // Fmin = 5Hz
-            htim2.Init.Period = (note_FHz<=5) ? 24999 : noteBaseTimFreq/2 / note_FHz - 1;
-            if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-            {
-                Error_Handler();
-            }
-            if(!silent)
-                HAL_TIM_Base_Start_IT(&htim2);
+            __HAL_TIM_SET_AUTORELOAD(&htim2, (note_FHz<=5) ? 49999 : (noteBaseTimFreq / note_FHz & 0xFFFFE) - 1);
+            __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4,
+                                 (note_FHz<=5) ? 24999 : noteBaseTimFreq / note_FHz /2 - 1);
+            if(silent)
+                __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
         }
         stim3.cnt1 = 0;
     }
@@ -275,6 +267,9 @@ void TIM3_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
         else if (pressed_col == -1)
             keypad_input.is_held = false;
     }
+    // cnt3_1 oneshot operation
+    if(stim3.cnt3_1 < stim3.T3)
+        stim3.cnt3_1 ++;
 
     if(stim3.cnt4 < stim3.T4)
         stim3.cnt4 ++;
@@ -369,9 +364,7 @@ void TIM4_PeriodElapsedCallback_ISR(TIM_HandleTypeDef *htim)
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-    if      (htim->Instance == TIM2)
-        TIM2_PeriodElapsedCallback_ISR(htim);
-    else if (htim->Instance == TIM3)
+    if      (htim->Instance == TIM3)
         TIM3_PeriodElapsedCallback_ISR(htim);
     else if (htim->Instance == TIM4)
         TIM4_PeriodElapsedCallback_ISR(htim);
@@ -419,6 +412,7 @@ int main(void)
 
     HAL_TIM_Base_Start_IT(&htim3);
     HAL_TIM_Base_Start_IT(&htim4);
+    HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
 
     for(i=0; i<16; i++)
     {
@@ -508,9 +502,9 @@ int main(void)
                             playNote(0, 25);
                             playNote(440, 50);
                             playNote(0, 25);
-                            playNote(440, 25);
-                            playNote(880, 25);
-                            playNote(1760, 25);
+                            playNote(440, 40);
+                            playNote(880, 40);
+                            playNote(1760, 40);
                             lock_state = SET_NEW;
                         }
                         else
@@ -557,18 +551,20 @@ int main(void)
                             playNote(0, 25);
                             playNote(880, 50);
                             playNote(0, 25);
-                            playNote(3520, 25);
+                            playNote(3520, 50);
                             LED4x4Draw(0b1111111111110000, 100);
                             LED4x4Draw(0b1111111100000000, 100);
                             LED4x4Draw(0b1111000000000000, 100);
                             LED4x4Draw(0b0000000000000000, 100);
                         }
                         else
-                        playNote(440, 50);    // play fail tune
-                        playNote(0, 25);
-                        playNote(220, 50);
-                        playNote(0, 25);
-                        playNote(220, 50);
+                        {
+                            playNote(440, 50);    // play fail tune
+                            playNote(0, 25);
+                            playNote(220, 50);
+                            playNote(0, 25);
+                            playNote(220, 50);
+                        }
                         i = 0;
                     }
                     else            // store char
@@ -579,7 +575,11 @@ int main(void)
             last_typed_char = keypad_input.key;
             keypad_input.was_processed = true;
         }
-        HAL_Delay(20);
+        //HAL_Delay(100);
+        HAL_SuspendTick();
+        stim3.cnt3_1 = 0;
+        while(stim3.cnt3_1 < 10)  __WFI();    // try to sleep for 100ms
+        HAL_ResumeTick();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -636,6 +636,7 @@ static void MX_TIM2_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM2_Init 1 */
 
@@ -643,7 +644,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 3;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 62;
+  htim2.Init.Period = 61;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -655,15 +656,28 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 30;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+  HAL_TIM_MspPostInit(&htim2);
 
 }
 
@@ -784,9 +798,6 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8, GPIO_PIN_SET);
 
   /*Configure GPIO pin : LED_Pin */
@@ -810,13 +821,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : BUZZER_Pin */
-  GPIO_InitStruct.Pin = BUZZER_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
-  HAL_GPIO_Init(BUZZER_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB5 PB6 PB7 PB8 */
   GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8;
