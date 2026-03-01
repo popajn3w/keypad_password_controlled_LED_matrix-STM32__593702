@@ -1,0 +1,10 @@
+@startuml
+[*] --> UNLOCKED : reset
+UNLOCKED --> SET_NEW_CHECK_OLD : "**" pressed
+UNLOCKED --> LOCKED : "##" pressed / lower door
+SET_NEW_CHECK_OLD --> SET_NEW : correct password
+SET_NEW_CHECK_OLD --> UNLOCKED : wrong password
+SET_NEW --> LOCKED : entered new password / change password, lower door
+LOCKED --> LOCKED : wrong password
+LOCKED --> UNLOCKED : correct password / raise door
+@enduml
